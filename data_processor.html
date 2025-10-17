@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>批量数据整理工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        accent: '#8B5CF6',
+                        dark: '#1F2937',
+                        light: '#F9FAFB'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .shadow-custom {
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            }
+            .gradient-bg {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            }
+            .card-hover {
+                transition: all 0.3s ease;
+            }
+            .card-hover:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <!-- 导航栏 -->
+    <nav class="bg-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-table text-primary text-2xl mr-3"></i>
+                    <h1 class="text-xl font-bold text-gray-800">批量数据整理工具</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                        <i class="fas fa-moon text-gray-600"></i>
+                    </button>
+                    <a href="#" class="text-gray-600 hover:text-primary transition-colors">
+                        <i class="fas fa-question-circle text-xl"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- 欢迎区域 -->
+        <div class="gradient-bg rounded-2xl p-8 text-white mb-8 shadow-custom">
+            <div class="flex flex-col md:flex-row items-center justify-between">
+                <div class="mb-6 md:mb-0">
+                    <h2 class="text-3xl font-bold mb-2">Excel数据批量整理</h2>
+                    <p class="text-blue-100 text-lg">轻松处理多省份、多指标的Excel数据表格</p>
+                </div>
+                <div class="flex space-x-4">
+                    <button id="sample-data-btn" class="bg-white text-primary px-6 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all flex items-center">
+                        <i class="fas fa-download mr-2"></i>
+                        下载示例数据
+                    </button>
+                    <button id="tutorial-btn" class="bg-blue-600 bg-opacity-50 text-white px-6 py-3 rounded-lg font-medium hover:bg-opacity-70 transition-all flex items-center">
+                        <i class="fas fa-play-circle mr-2"></i>
+                        使用教程
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 功能区域 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+            <!-- 上传区域 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-xl shadow-md p-6 card-hover">
+                    <div class="text-center mb-6">
+                        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 text-primary mb-4">
+                            <i class="fas fa-upload text-2xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-800">上传Excel文件</h3>
+                        <p class="text-gray-600 mt-2">支持.xlsx, .xls格式文件</p>
+                    </div>
+                    
+                    <div id="drop-area" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors">
+                        <i class="fas fa-file-excel text-4xl text-green-500 mb-4"></i>
+                        <p class="text-gray-600 mb-2">拖放文件到此处或</p>
+                        <label class="bg-primary text-white px-4 py-2 rounded-lg font-medium cursor-pointer hover:bg-blue-600 transition-colors">
+                            选择文件
+                            <input type="file" id="file-input" class="hidden" accept=".xlsx, .xls">
+                        </label>
+                    </div>
+                    
+                    <div id="file-info" class="mt-4 hidden">
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div class="flex items-center">
+                                <i class="fas fa-file-excel text-green-500 mr-3"></i>
+                                <span id="file-name" class="text-gray-700 truncate"></span>
+                            </div>
+                            <button id="remove-file" class="text-red-500 hover:text-red-700 transition-colors">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6">
+                        <button id="process-btn" class="w-full bg-primary text-white py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors flex items-center justify-center">
+                            <i class="fas fa-magic mr-2"></i>
+                            开始处理
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 处理选项 -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-xl shadow-md p-6 card-hover">
+                    <div class="flex items-center mb-6">
+                        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-purple-100 text-accent mr-4">
+                            <i class="fas fa-cogs text-xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-800">处理选项</h3>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">工作表名称</label>
+                            <select id="sheet-select" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary focus:border-primary">
+                                <option value="">请先上传文件</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">数据起始行</label>
+                            <input type="number" id="start-row" value="1" min="1" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary focus:border-primary">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">县域名列</label>
+                            <select id="county-column" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary focus:border-primary">
+                                <option value="">请先上传文件</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">指标名称行</label>
+                            <input type="number" id="indicator-row" value="1" min="1" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary focus:border-primary">
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div class="flex">
+                            <i class="fas fa-info-circle text-primary mt-0.5 mr-3"></i>
+                            <div>
+                                <h4 class="font-medium text-primary mb-1">处理说明</h4>
+                                <p class="text-sm text-gray-600">
+                                    系统将把县域名排成一列放在最左边，第一列第一排为"指标"，第二排为"单位"，
+                                    指标名称排列在第一排，中间部分为对应的数据。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据预览区域 -->
+        <div class="bg-white rounded-xl shadow-md p-6 mb-8 hidden" id="preview-section">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center">
+                    <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100 text-secondary mr-4">
+                        <i class="fas fa-eye text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800">数据预览</h3>
+                </div>
+                <div class="flex space-x-3">
+                    <button id="download-excel" class="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center">
+                        <i class="fas fa-file-excel mr-2"></i>
+                        下载Excel
+                    </button>
+                    <button id="download-csv" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center">
+                        <i class="fas fa-file-csv mr-2"></i>
+                        下载CSV
+                    </button>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200" id="preview-table">
+                    <thead class="bg-gray-50">
+                        <tr id="preview-header"></tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="preview-body">
+                        <!-- 数据将通过JavaScript动态填充 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 处理结果统计 -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 hidden" id="stats-section">
+            <div class="bg-white rounded-xl shadow-md p-6 card-hover">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-blue-100 text-primary mr-4">
+                        <i class="fas fa-map-marker-alt text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">县域名数量</p>
+                        <p class="text-2xl font-bold text-gray-900" id="county-count">0</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-md p-6 card-hover">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-green-100 text-secondary mr-4">
+                        <i class="fas fa-chart-line text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">指标数量</p>
+                        <p class="text-2xl font-bold text-gray-900" id="indicator-count">0</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-md p-6 card-hover">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-purple-100 text-accent mr-4">
+                        <i class="fas fa-database text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">数据单元格</p>
+                        <p class="text-2xl font-bold text-gray-900" id="data-count">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作历史 -->
+        <div class="bg-white rounded-xl shadow-md p-6 hidden" id="history-section">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center">
+                    <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-100 text-orange-600 mr-4">
+                        <i class="fas fa-history text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800">操作历史</h3>
+                </div>
+                <button id="clear-history" class="text-red-500 hover:text-red-700 transition-colors text-sm font-medium">
+                    清空历史
+                </button>
+            </div>
+            
+            <div class="space-y-4" id="history-list">
+                <!-- 历史记录将通过JavaScript动态填充 -->
+            </div>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-white border-t border-gray-200 py-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <p class="text-gray-600">© 2024 批量数据整理工具 | 专业的数据处理解决方案</p>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="#" class="text-gray-600 hover:text-primary transition-colors">
+                        <i class="fab fa-github text-xl"></i>
+                    </a>
+                    <a href="#" class="text-gray-600 hover:text-primary transition-colors">
+                        <i class="fab fa-twitter text-xl"></i>
+                    </a>
+                    <a href="#" class="text-gray-600 hover:text-primary transition-colors">
+                        <i class="fas fa-envelope text-xl"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 模态框 - 教程 -->
+    <div id="tutorial-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 overflow-hidden">
+            <div class="flex justify-between items-center p-6 border-b">
+                <h3 class="text-xl font-bold text-gray-800">使用教程</h3>
+                <button id="close-tutorial" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 max-h-[70vh] overflow-y-auto">
+                <div class="space-y-6">
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-800 mb-2">1. 准备Excel文件</h4>
+                        <p class="text-gray-600 mb-4">
+                            确保您的Excel文件包含县域名和对应的指标数据。通常，县域名会在某一列，指标名称会在某一行。
+                        </p>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <p class="text-sm text-gray-600">
+                                <strong>提示：</strong> 如果您不确定文件格式，可以下载示例数据作为参考。
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-800 mb-2">2. 上传文件</h4>
+                        <p class="text-gray-600">
+                            点击"选择文件"按钮或直接拖放Excel文件到上传区域。系统支持.xlsx和.xls格式。
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-800 mb-2">3. 设置处理选项</h4>
+                        <ul class="list-disc list-inside text-gray-600 space-y-2">
+                            <li><strong>工作表名称：</strong>选择包含数据的工作表</li>
+                            <li><strong>数据起始行：</strong>设置数据开始的行数</li>
+                            <li><strong>县域名列：</strong>选择包含县域名的列</li>
+                            <li><strong>指标名称行：</strong>设置指标名称所在的行数</li>
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-800 mb-2">4. 开始处理</h4>
+                        <p class="text-gray-600">
+                            点击"开始处理"按钮，系统将按照您的要求重新整理数据。处理完成后，您可以预览结果并下载整理后的数据。
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-800 mb-2">5. 下载结果</h4>
+                        <p class="text-gray-600">
+                            您可以选择下载Excel格式或CSV格式的处理结果。
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 border-t flex justify-end">
+                <button id="start-using" class="bg-primary text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-600 transition-colors">
+                    开始使用
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let workbook = null;
+        let processedData = null;
+        let originalData = null;
+        let history = [];
+
+        // DOM 元素
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('file-input');
+        const fileInfo = document.getElementById('file-info');
+        const fileName = document.getElementById('file-name');
+        const removeFile = document.getElementById('remove-file');
+        const processBtn = document.getElementById('process-btn');
+        const sheetSelect = document.getElementById('sheet-select');
+        const countyColumn = document.getElementById('county-column');
+        const previewSection = document.getElementById('preview-section');
+        const previewHeader = document.getElementById('preview-header');
+        const previewBody = document.getElementById('preview-body');
+        const statsSection = document.getElementById('stats-section');
+        const countyCount = document.getElementById('county-count');
+        const indicatorCount = document.getElementById('indicator-count');
+        const dataCount = document.getElementById('data-count');
+        const downloadExcel = document.getElementById('download-excel');
+        const downloadCsv = document.getElementById('download-csv');
+        const tutorialBtn = document.getElementById('tutorial-btn');
+        const tutorialModal = document.getElementById('tutorial-modal');
+        const closeTutorial = document.getElementById('close-tutorial');
+        const startUsing = document.getElementById('start-using');
+        const sampleDataBtn = document.getElementById('sample-data-btn');
+        const historySection = document.getElementById('history-section');
+        const historyList = document.getElementById('history-list');
+        const clearHistory = document.getElementById('clear-history');
+        const themeToggle = document.getElementById('theme-toggle');
+
+        // 初始化事件监听
+        function initEventListeners() {
+            // 确保所有DOM元素正确获取
+            console.log('初始化事件监听器...');
+            console.log('dropArea:', dropArea);
+            console.log('fileInput:', fileInput);
+            console.log('sheetSelect:', sheetSelect);
+            console.log('countyColumn:', countyColumn);
+            
+            // 文件拖放
+            if (dropArea) {
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    dropArea.addEventListener(eventName, preventDefaults, false);
+                });
+
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dropArea.addEventListener(eventName, highlight, false);
+                });
+
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dropArea.addEventListener(eventName, unhighlight, false);
+                });
+
+                dropArea.addEventListener('drop', handleDrop, false);
+            }
+            
+            // 文件选择
+            if (fileInput) {
+                fileInput.addEventListener('change', handleFileSelect, false);
+            }
+            
+            // 其他按钮事件
+            if (removeFile) removeFile.addEventListener('click', removeSelectedFile);
+            if (processBtn) processBtn.addEventListener('click', processData);
+            if (downloadExcel) downloadExcel.addEventListener('click', () => downloadFile('xlsx'));
+            if (downloadCsv) downloadCsv.addEventListener('click', () => downloadFile('csv'));
+            
+            // 工作表选择变化
+            if (sheetSelect) {
+                sheetSelect.addEventListener('change', updateColumnSelect);
+            }
+            
+            // 模态框
+            if (tutorialBtn) tutorialBtn.addEventListener('click', () => tutorialModal.classList.remove('hidden'));
+            if (closeTutorial) closeTutorial.addEventListener('click', () => tutorialModal.classList.add('hidden'));
+            if (startUsing) startUsing.addEventListener('click', () => tutorialModal.classList.add('hidden'));
+            
+            // 示例数据
+            if (sampleDataBtn) sampleDataBtn.addEventListener('click', downloadSampleData);
+            
+            // 历史记录
+            if (clearHistory) clearHistory.addEventListener('click', clearHistoryRecords);
+            
+            // 主题切换
+            if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
+            
+            console.log('事件监听器初始化完成');
+        }
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function highlight() {
+            dropArea.classList.add('border-primary', 'bg-blue-50');
+        }
+
+        function unhighlight() {
+            dropArea.classList.remove('border-primary', 'bg-blue-50');
+        }
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length) {
+                handleFiles(files);
+            }
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            if (files.length) {
+                handleFiles(files);
+            }
+        }
+
+        function handleFiles(files) {
+            const file = files[0];
+            console.log('开始处理文件:', file.name, file.size, file.type);
+            
+            // 放宽文件类型检查，允许更多可能的Excel格式
+            const fileExt = file.name.toLowerCase().substr(file.name.lastIndexOf('.'));
+            if (!['.xlsx', '.xls', '.xlsm', '.xlsb'].includes(fileExt)) {
+                alert('请上传Excel文件 (.xlsx, .xls, .xlsm, .xlsb)');
+                return;
+            }
+
+            fileName.textContent = file.name;
+            fileInfo.classList.remove('hidden');
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    console.log('文件读取完成，开始解析');
+                    const data = e.target.result;
+                    
+                    // 尝试不同的读取方式
+                    try {
+                        // 首先尝试读取为array
+                        workbook = XLSX.read(new Uint8Array(data), { 
+                            type: 'array',
+                            cellDates: true,
+                            raw: false,
+                            password: '' // 尝试处理无密码的情况
+                        });
+                    } catch (e1) {
+                        console.warn('尝试array模式失败，尝试binary模式:', e1.message);
+                        // 尝试binary模式
+                        workbook = XLSX.read(data, { 
+                            type: 'binary',
+                            cellDates: true,
+                            raw: false
+                        });
+                    }
+                    
+                    // 检查workbook是否成功创建
+                    console.log('解析后workbook状态:', workbook);
+                    
+                    // 简化验证逻辑
+                    if (!workbook || !workbook.SheetNames) {
+                        alert('文件解析失败，无法识别文件格式。可能是加密或损坏的文件。');
+                        removeSelectedFile();
+                        return;
+                    }
+                    
+                    if (workbook.SheetNames.length === 0) {
+                        alert('文件中未找到工作表');
+                        removeSelectedFile();
+                        return;
+                    }
+                    
+                    // 填充工作表选择
+                    sheetSelect.innerHTML = '';
+                    workbook.SheetNames.forEach(sheetName => {
+                        const option = document.createElement('option');
+                        option.value = sheetName;
+                        option.textContent = sheetName;
+                        sheetSelect.appendChild(option);
+                    });
+                    
+                    // 自动选择第一个工作表
+                    if (sheetSelect.options.length > 0) {
+                        sheetSelect.selectedIndex = 0;
+                    }
+                    
+                    // 填充列选择
+                    updateColumnSelect();
+                    
+                    console.log('文件上传成功:', file.name);
+                    console.log('工作表数量:', workbook.SheetNames.length);
+                    alert('文件上传成功！请设置处理选项并点击开始处理。');
+                } catch (error) {
+                    console.error('文件解析错误详情:', error);
+                    
+                    // 根据错误类型提供更具体的提示
+                    let errorMsg = '文件解析错误: ' + (error.message || '未知错误');
+                    
+                    if (errorMsg.includes('password')) {
+                        errorMsg = '文件可能有密码保护，请先移除密码再上传。';
+                    } else if (errorMsg.includes('corrupt')) {
+                        errorMsg = '文件可能已损坏，请尝试重新保存或使用其他文件。';
+                    }
+                    
+                    alert(errorMsg);
+                    removeSelectedFile();
+                }
+            };
+            
+            reader.onerror = function(error) {
+                console.error('文件读取错误:', error);
+                alert('文件读取失败，请检查文件是否完整或尝试使用其他浏览器。');
+                removeSelectedFile();
+            };
+            
+            // 尝试使用不同的读取方式
+            try {
+                reader.readAsArrayBuffer(file);
+            } catch (e) {
+                console.warn('readAsArrayBuffer失败，尝试readAsBinaryString:', e.message);
+                reader.readAsBinaryString(file);
+            }
+        }
+
+        function updateColumnSelect() {
+            console.log('开始更新列选择...');
+            
+            // 检查必要的变量
+            if (!workbook) {
+                console.error('workbook未初始化');
+                alert('请先上传文件');
+                return;
+            }
+            
+            if (!sheetSelect || !sheetSelect.value) {
+                console.error('sheetSelect未初始化或未选择工作表');
+                alert('请选择一个工作表');
+                return;
+            }
+            
+            const selectedSheet = sheetSelect.value;
+            if (!workbook.Sheets) {
+                console.error('workbook.Sheets未定义');
+                alert('无法读取文件内容');
+                return;
+            }
+
+            try {
+                console.log('选中的工作表:', selectedSheet);
+                
+                const worksheet = workbook.Sheets[selectedSheet];
+                if (!worksheet) {
+                    console.error('找不到指定的工作表:', selectedSheet);
+                    alert('无法获取选中的工作表，请重新选择');
+                    return;
+                }
+                
+                // 获取工作表范围，增加错误处理
+                let range;
+                try {
+                    range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:A1');
+                    console.log('工作表范围:', range);
+                } catch (rangeError) {
+                    console.warn('获取工作表范围失败，使用默认范围:', rangeError.message);
+                    range = { s: { c: 0, r: 0 }, e: { c: 9, r: 0 } }; // 默认10列
+                }
+                
+                // 清空现有选项
+                countyColumn.innerHTML = '';
+                
+                // 添加空选项作为默认
+                const emptyOption = document.createElement('option');
+                emptyOption.value = '';
+                emptyOption.textContent = '请选择县域名列...';
+                countyColumn.appendChild(emptyOption);
+                
+                // 添加列选项
+                for (let c = 0; c <= range.e.c; c++) {
+                    try {
+                        const colName = XLSX.utils.encode_col(c);
+                        const option = document.createElement('option');
+                        option.value = colName;
+                        option.textContent = colName + '列';
+                        countyColumn.appendChild(option);
+                    } catch (e) {
+                        console.warn('添加列选项时出错:', e.message);
+                    }
+                }
+                
+                // 自动选择第一个列（如果有数据）
+                if (countyColumn.options.length > 1) {
+                    countyColumn.selectedIndex = 1;
+                }
+                
+                console.log('列选择已更新，发现', range.e.c + 1, '列');
+                console.log('可选择的县域名列数:', countyColumn.options.length - 1);
+            } catch (error) {
+                console.error('更新列选择时出错:', error);
+                console.error('错误堆栈:', error.stack);
+                alert('读取文件列信息时出错: ' + (error.message || '未知错误'));
+            }
+        }
+
+        function removeSelectedFile() {
+            fileInput.value = '';
+            fileInfo.classList.add('hidden');
+            workbook = null;
+            processedData = null;
+            originalData = null;
+            previewSection.classList.add('hidden');
+            statsSection.classList.add('hidden');
+            historySection.classList.add('hidden');
+        }
+
+        function processData() {
+            console.log('开始处理数据...');
+            
+            try {
+                // 添加更详细的检查
+                if (!workbook) {
+                    console.error('workbook未初始化');
+                    alert('请先上传Excel文件');
+                    return;
+                }
+                
+                if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+                    console.error('workbook中没有工作表');
+                    alert('文件解析失败，未找到工作表');
+                    return;
+                }
+
+                const selectedSheet = sheetSelect.value;
+                const countyCol = countyColumn.value;
+                
+                // 获取行号输入，添加默认值和错误处理
+                let startRow, indicatorRow;
+                try {
+                    startRow = parseInt(document.getElementById('start-row')?.value || '2') - 1; // 默认从第2行开始
+                    indicatorRow = parseInt(document.getElementById('indicator-row')?.value || '1') - 1; // 默认第1行为指标行
+                } catch (e) {
+                    console.warn('行号解析失败，使用默认值:', e.message);
+                    startRow = 1;
+                    indicatorRow = 0;
+                }
+
+                if (!selectedSheet) {
+                    alert('请选择工作表');
+                    return;
+                }
+                
+                if (!countyCol) {
+                    alert('请选择县域名列');
+                    return;
+                }
+
+                console.log('处理参数:', {
+                    selectedSheet,
+                    countyCol,
+                    startRow,
+                    indicatorRow
+                });
+
+                const worksheet = workbook.Sheets[selectedSheet];
+                if (!worksheet) {
+                    console.error('找不到工作表:', selectedSheet);
+                    alert('无法获取选中的工作表，请重新选择');
+                    return;
+                }
+                
+                // 获取工作表范围，添加错误处理
+                let range;
+                try {
+                    range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:A1');
+                    console.log('工作表范围:', range);
+                } catch (rangeError) {
+                    console.warn('获取工作表范围失败，使用默认范围:', rangeError.message);
+                    range = { s: { c: 0, r: 0 }, e: { c: 9, r: 99 } }; // 默认范围
+                }
+                
+                // 确保行号有效
+                if (startRow < 0) startRow = 0;
+                if (indicatorRow < 0) indicatorRow = 0;
+                if (startRow > range.e.r) startRow = range.e.r;
+                if (indicatorRow > range.e.r) indicatorRow = range.e.r;
+                
+                // 尝试不同方式读取原始数据
+                try {
+                    originalData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
+                } catch (e) {
+                    console.warn('读取JSON数据失败，尝试raw模式:', e.message);
+                    originalData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
+                }
+                
+                console.log('原始数据行数:', originalData ? originalData.length : 'undefined');
+                
+                // 提取县域名 - 支持识别Excel中多个小表格的县域名
+                const countiesSet = new Set();
+                try {
+                    console.log('开始提取县域名，支持识别多个小表格中的县域名...');
+                    
+                    // 方法1：扫描所有行，识别可能的县域名行（通常在每个小表格的表头部分）
+                    for (let r = 0; r <= range.e.r; r++) {
+                        let potentialCountiesInRow = [];
+                        let nonEmptyCount = 0;
+                        
+                        // 从C列开始扫描（假设前两列是指标和单位）
+                        for (let c = 2; c <= range.e.c; c++) {
+                            const cellAddress = XLSX.utils.encode_col(c) + (r + 1);
+                            const cell = worksheet[cellAddress];
+                            
+                            if (cell && cell.v) {
+                                const cellValue = String(cell.v).trim();
+                                nonEmptyCount++;
+                                
+                                // 县域名识别规则
+                                const isCounty = 
+                                    cellValue.length >= 2 && 
+                                    !/^\d+(\.\d+)?$/.test(cellValue) && 
+                                    !['合计', '总计', '小计', '总计:', '小计:', '单位'].includes(cellValue) && 
+                                    (cellValue.includes('县') || cellValue.includes('区') || 
+                                     cellValue.includes('市') || /^[\u4e00-\u9fa5]{2,10}$/.test(cellValue));
+                                
+                                if (isCounty) {
+                                    potentialCountiesInRow.push(cellValue);
+                                }
+                            }
+                        }
+                        
+                        // 如果这一行有多个潜在县域名，可能是县域名行
+                        if (potentialCountiesInRow.length >= 2 && potentialCountiesInRow.length >= nonEmptyCount * 0.5) {
+                            console.log(`找到可能的县域名行: ${r+1}，包含 ${potentialCountiesInRow.length} 个县域名`);
+                            potentialCountiesInRow.forEach(county => {
+                                countiesSet.add(county);
+                            });
+                        }
+                    }
+                    
+                    console.log(`通过县域名行识别找到县域名数量: ${countiesSet.size}`);
+                    
+                    // 方法2：直接查找包含特定特征的县域名（针对所有单元格）
+                    if (countiesSet.size < 3) {
+                        console.log('方法1提取县域名不足，使用方法2扫描所有单元格...');
+                        
+                        // 按行优先顺序扫描所有单元格
+                        for (let r = 0; r <= range.e.r; r++) {
+                            for (let c = 0; c <= range.e.c; c++) {
+                                const cellAddress = XLSX.utils.encode_col(c) + (r + 1);
+                                const cell = worksheet[cellAddress];
+                                
+                                if (cell && cell.v) {
+                                    const value = String(cell.v).trim();
+                                    
+                                    // 更精确的县域名识别规则
+                                    const isCounty = 
+                                        value.length >= 2 && 
+                                        !/^\d+(\.\d+)?$/.test(value) &&
+                                        (value.includes('县') || value.includes('区') || value.includes('市') ||
+                                         value.includes('温江区') || value.includes('双流区') || value.includes('郫都区') ||
+                                         value.includes('新津区') || value.includes('金堂县') || value.includes('大邑县') ||
+                                         value.includes('蒲江县') || value.includes('都江堰市') || value.includes('彭州市') ||
+                                         value.includes('邛崃市')) &&
+                                        !['合计', '总计', '小计', '单位'].includes(value);
+                                    
+                                    if (isCounty) {
+                                        countiesSet.add(value);
+                                        console.log(`方法2从单元格 ${cellAddress} 找到县域名: ${value}`);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 方法3：使用原始数据作为最后的备用
+                    if (countiesSet.size < 3 && originalData) {
+                        console.log('方法2提取县域名不足，使用原始数据...');
+                        
+                        // 按行优先顺序扫描原始数据
+                        for (let r = 0; r < originalData.length; r++) {
+                            const row = originalData[r];
+                            if (row) {
+                                for (let c = 0; c < row.length; c++) {
+                                    if (row[c]) {
+                                        const value = String(row[c]).trim();
+                                        
+                                        // 县域名识别规则
+                                        const isLikelyCounty = 
+                                            value.length >= 2 && 
+                                            !/^\d+(\.\d+)?$/.test(value) &&
+                                            (value.includes('县') || value.includes('区') || value.includes('市')) &&
+                                            !['合计', '总计', '小计', '单位'].includes(value);
+                                        
+                                        if (isLikelyCounty) {
+                                            countiesSet.add(value);
+                                            console.log(`从原始数据行 ${r+1} 列 ${c+1} 找到县域名: ${value}`);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                } catch (e) {
+                    console.error('提取县域名时出错:', e.message);
+                    // 最后的备用方法
+                    if (originalData) {
+                        for (let r = 0; r < originalData.length; r++) {
+                            const row = originalData[r];
+                            if (row) {
+                                for (let c = 2; c < row.length; c++) { // 从第三列开始
+                                    if (row[c]) {
+                                        const countyName = String(row[c]).trim();
+                                        if (countyName && !/^\d+(\.\d+)?$/.test(countyName) && 
+                                            (countyName.includes('县') || countyName.includes('区') || countyName.includes('市'))) {
+                                            countiesSet.add(countyName);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // 确保县域名按正确顺序排列
+                const counties = Array.from(countiesSet);
+                console.log('识别到的所有县域名:', counties);
+                
+                console.log('最终提取到的县域名数量:', counties.length);
+                console.log('县域名列表:', counties.slice(0, 5).join(', '), counties.length > 5 ? '...' : '');
+                
+                if (counties.length === 0) {
+                    alert('未找到县域名数据，请检查选择的列和起始行');
+                    return;
+                }
+                
+                console.log('提取到的县域名数量:', counties.length);
+                
+                // 提取指标名称 - 从A列提取并确保只保留一份
+                const indicatorsSet = new Set();
+                try {
+                    console.log('开始从A列提取不重复的指标名称...');
+                    
+                    // 从A列提取指标名称，过滤掉标题行和汇总行
+                    for (let r = 0; r <= range.e.r; r++) {
+                        const cellAddress = 'A' + (r + 1);
+                        const cell = worksheet[cellAddress];
+                        
+                        if (cell && cell.v) {
+                            const value = String(cell.v).trim();
+                            // 过滤掉数字、短字符串、标题行和特殊关键词
+                            if (value.length > 1 && 
+                                !/^\d+(\.\d+)?$/.test(value) &&
+                                !['四川省', '一、基本情况', '二、综合经济', '三、农业', '四、教育', '合计', '总计', '小计'].includes(value) &&
+                                !value.includes('单位')) {
+                                // 只添加实际的指标名称，不添加类别标题
+                                indicatorsSet.add(value);
+                                console.log(`从A${r+1}提取指标: ${value}`);
+                            }
+                        }
+                    }
+                    
+                    // 如果提取到的指标不足，使用备用方法
+                    if (indicatorsSet.size < 1) {
+                        console.log('从A列提取指标不足，使用备用方法...');
+                        if (originalData && originalData.length > 0) {
+                            for (let r = 0; r < originalData.length; r++) {
+                                const row = originalData[r];
+                                if (row && row[0]) {
+                                    const value = String(row[0]).trim();
+                                    if (value.length > 1 && !/^\d+(\.\d+)?$/.test(value) &&
+                                        !['四川省', '一、', '二、', '三、', '四、', '合计', '总计'].some(prefix => value.startsWith(prefix))) {
+                                        indicatorsSet.add(value);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('提取指标名称时出错:', e.message);
+                }
+                
+                // 如果还是没有提取到指标，创建默认指标
+                if (indicatorsSet.size === 0) {
+                    console.log('没有提取到指标，创建默认指标...');
+                    indicatorsSet.add('默认指标');
+                }
+                
+                const indicators = Array.from(indicatorsSet);
+                console.log('提取到的所有不重复指标:', indicators);
+                
+                if (indicators.length === 0) {
+                    // 如果没有找到指标，创建默认指标
+                    indicators.push('默认指标');
+                }
+                
+                console.log('提取到的指标数量:', indicators.length);
+                
+                // 提取数据 - 直接按县域名顺序提取
+                const data = [];
+                
+                try {
+                    console.log('开始提取数据，按县域名顺序处理...');
+                    
+                    // 为每个已提取的县域名寻找对应的数据行
+                    counties.forEach((countyName, index) => {
+                        let rowFound = false;
+                        
+                        // 扫描整个工作表查找对应的县域名
+                        for (let r = 0; r <= range.e.r; r++) {
+                            const cellAddress = countyCol + (r + 1); // 1-based
+                            const cell = worksheet[cellAddress];
+                            
+                            if (cell && cell.v) {
+                                const currentCounty = String(cell.v).trim();
+                                
+                                // 如果找到匹配的县域名
+                                if (currentCounty === countyName) {
+                                    rowFound = true;
+                                    console.log(`为县域名 ${countyName} 找到对应的数据行 ${r+1}`);
+                                    
+                                    // 提取该行除县域名列外的所有数据
+                                    const rowData = [];
+                                    for (let c = 0; c <= range.e.c; c++) {
+                                        const currentCol = XLSX.utils.encode_col(c);
+                                        if (currentCol !== countyCol) { // 跳过县域名列
+                                            const dataCellAddress = currentCol + (r + 1);
+                                            const dataCell = worksheet[dataCellAddress];
+                                            rowData.push(dataCell ? dataCell.v : '');
+                                        }
+                                    }
+                                    
+                                    data.push(rowData);
+                                    break; // 找到后跳出循环
+                                }
+                            }
+                        }
+                        
+                        // 如果没找到对应的行，添加空数据行
+                        if (!rowFound) {
+                            console.warn(`未找到县域名 ${countyName} 对应的数据行`);
+                            data.push([]);
+                        }
+                    });
+                    
+                    console.log(`处理完成的数据行数: ${data.length}`);
+                    
+                    // 第三步：如果使用县域名映射没有提取到足够的数据，尝试使用原始方法
+                    if (data.length < counties.length * 0.5) { // 如果映射成功率低于50%
+                        console.warn('县域名映射提取数据不足，使用备用方法...');
+                        
+                        // 清除之前的数据
+                        data.length = 0;
+                        
+                        // 遍历所有可能的行，提取数据
+                        for (let r = 0; r <= range.e.r; r++) {
+                            // 检查这一行是否包含县域名
+                            const cellAddress = countyCol + (r + 1);
+                            const cell = worksheet[cellAddress];
+                            if (cell && cell.v) {
+                                const countyName = String(cell.v).trim();
+                                // 如果是有效的县域名
+                                if (countyName && !/^\d+(\.\d+)?$/.test(countyName) && countyName.length > 1) {
+                                    // 提取这一行的数据
+                                    const rowData = [];
+                                    for (let c = 0; c <= range.e.c; c++) {
+                                        const currentCol = XLSX.utils.encode_col(c);
+                                        if (currentCol !== countyCol) {
+                                            const dataCellAddress = currentCol + (r + 1);
+                                            const dataCell = worksheet[dataCellAddress];
+                                            rowData.push(dataCell ? dataCell.v : '');
+                                        }
+                                    }
+                                    data.push(rowData);
+                                }
+                            }
+                        }
+                    }
+                    
+                } catch (e) {
+                    console.error('提取数据时出错:', e.message);
+                    // 使用原始数据作为最后的备用方法
+                    if (originalData) {
+                        console.log('使用原始数据作为备用...');
+                        const colIndex = XLSX.utils.decode_col(countyCol);
+                        
+                        // 重置数据数组
+                        data.length = 0;
+                        
+                        // 遍历所有行
+                        for (let r = 0; r < originalData.length; r++) {
+                            const row = originalData[r];
+                            if (row && row[colIndex]) {
+                                const countyName = String(row[colIndex]).trim();
+                                // 如果是有效的县域名
+                                if (countyName && !/^\d+(\.\d+)?$/.test(countyName) && countyName.length > 1) {
+                                    // 提取该行数据
+                                    const rowData = [];
+                                    for (let c = 0; c < row.length; c++) {
+                                        if (c !== colIndex) {
+                                            rowData.push(row[c] || '');
+                                        }
+                                    }
+                                    data.push(rowData);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                console.log('提取到的数据行数:', data.length);
+                console.log('每个县域名对应的数据列数示例:', data.length > 0 ? data[0].length : '0');
+                
+                // 创建处理后的数据结构
+                processedData = [];
+                
+                // 重构数据提取逻辑 - 构建指标-县域名-数据映射
+                console.log('开始构建指标-县域名-数据映射...');
+                const dataMap = new Map();
+                const unitMap = new Map(); // 存储每个指标的单位
+                
+                // 初始化映射
+                indicators.forEach(indicator => {
+                    dataMap.set(indicator, new Map());
+                });
+                
+                // 重新扫描工作表，识别每个小表格并构建完整的数据映射
+                let currentTableStart = -1;
+                let countyToColumnMap = new Map(); // 县域名到列索引的映射
+                
+                for (let r = 0; r <= range.e.r; r++) {
+                    // 检查是否是县域名行
+                    let isCountyHeaderRow = false;
+                    let tempCountyMap = new Map();
+                    
+                    // 从C列开始检查
+                    for (let c = 2; c <= range.e.c; c++) {
+                        const cellAddress = XLSX.utils.encode_col(c) + (r + 1);
+                        const cell = worksheet[cellAddress];
+                        
+                        if (cell && cell.v) {
+                            const cellValue = String(cell.v).trim();
+                            if (counties.includes(cellValue)) {
+                                tempCountyMap.set(cellValue, c);
+                            }
+                        }
+                    }
+                    
+                    // 如果这一行包含多个县域名，标记为县域名行
+                    if (tempCountyMap.size >= 2) {
+                        isCountyHeaderRow = true;
+                        currentTableStart = r;
+                        countyToColumnMap = tempCountyMap;
+                        console.log(`找到新的表格起始行 ${r+1}，包含 ${tempCountyMap.size} 个县域名`);
+                        continue;
+                    }
+                    
+                    // 如果在表格内，处理指标数据行
+                    if (currentTableStart !== -1) {
+                        // 获取A列的指标名称
+                        const indicatorAddress = 'A' + (r + 1);
+                        const indicatorCell = worksheet[indicatorAddress];
+                        
+                        if (indicatorCell && indicatorCell.v) {
+                            const indicatorName = String(indicatorCell.v).trim();
+                            
+                            // 检查这是否是一个有效的指标名称
+                            if (dataMap.has(indicatorName)) {
+                                // 获取B列的单位
+                                const unitAddress = 'B' + (r + 1);
+                                const unitCell = worksheet[unitAddress];
+                                const unitValue = unitCell && unitCell.v ? String(unitCell.v).trim() : '';
+                                
+                                // 保存单位（如果还没有保存）
+                                if (!unitMap.has(indicatorName) && unitValue) {
+                                    unitMap.set(indicatorName, unitValue);
+                                }
+                                
+                                // 为每个县域名查找对应的数据
+                                countyToColumnMap.forEach((colIndex, countyName) => {
+                                    const dataCellAddress = XLSX.utils.encode_col(colIndex) + (r + 1);
+                                    const dataCell = worksheet[dataCellAddress];
+                                    
+                                    if (dataCell && dataCell.v !== undefined) {
+                                        dataMap.get(indicatorName).set(countyName, dataCell.v);
+                                        console.log(`设置数据: ${indicatorName} - ${countyName} = ${dataCell.v}`);
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    
+                    // 检测表格结束（连续空行）
+                    let isEmptyRow = true;
+                    for (let c = 0; c <= range.e.c; c++) {
+                        const cellAddress = XLSX.utils.encode_col(c) + (r + 1);
+                        const cell = worksheet[cellAddress];
+                        if (cell && cell.v) {
+                            isEmptyRow = false;
+                            break;
+                        }
+                    }
+                    
+                    if (isEmptyRow && currentTableStart !== -1) {
+                        // 表格结束，重置状态
+                        console.log(`表格结束，处理了 ${r - currentTableStart} 行数据`);
+                        currentTableStart = -1;
+                    }
+                }
+                
+                // 构建处理后的数据结构（中转结构）
+                let tempProcessedData = [];
+                const tempHeaderRow = ['指标名称', '单位', ...counties];
+                tempProcessedData.push(tempHeaderRow);
+                
+                // 后续行：每个指标一行，A列为指标名称，B列为单位，后面为各县域数据
+                indicators.forEach(indicator => {
+                    const row = [indicator, unitMap.get(indicator) || ''];
+                    
+                    // 添加每个县对应的数据
+                    counties.forEach(county => {
+                        try {
+                            if (dataMap.has(indicator) && dataMap.get(indicator).has(county)) {
+                                const cellValue = dataMap.get(indicator).get(county);
+                                // 处理数字和日期
+                                if (cellValue !== null && cellValue !== undefined) {
+                                    // 确保是字符串格式以保留数值精度
+                                    if (typeof cellValue === 'number' || !isNaN(cellValue)) {
+                                        row.push(String(cellValue).trim());
+                                    } else {
+                                        row.push(String(cellValue).trim());
+                                    }
+                                } else {
+                                    row.push('');
+                                }
+                            } else {
+                                row.push('');
+                            }
+                        } catch (e) {
+                            console.warn(`处理单元格数据时出错(${indicator},${county}):`, e.message);
+                            row.push('');
+                        }
+                    });
+                    
+                    tempProcessedData.push(row);
+                });
+                
+                console.log('中转数据行数:', tempProcessedData.length);
+                console.log('中转表头结构:', tempProcessedData[0]);
+                
+                // 表格转置：将县级单位名称放在A列，指标名称放在第一行
+                processedData = [];
+                
+                // 构建转置后的表头行
+                const transposedHeader = ['县级单位'];
+                // 从第二行开始，将每个指标名称添加到转置后的表头
+                for (let r = 1; r < tempProcessedData.length; r++) {
+                    transposedHeader.push(tempProcessedData[r][0]); // 添加指标名称
+                }
+                processedData.push(transposedHeader);
+                
+                // 为每个县域名生成一行数据
+                counties.forEach((county, index) => {
+                    const row = [county];
+                    
+                    // 为每个指标添加对应的数据
+                    for (let r = 1; r < tempProcessedData.length; r++) {
+                        // 县域名对应的数据在指标行的 index+2 位置（0:指标名, 1:单位, 2+:县数据）
+                        row.push(tempProcessedData[r][index + 2] || '');
+                    }
+                    
+                    processedData.push(row);
+                });
+                
+                console.log('转置后的数据行数:', processedData.length);
+                console.log('转置后的表头结构:', processedData[0]);
+                console.log('表头结构:', processedData[0]);
+                
+                console.log('处理后的数据行数:', processedData.length);
+                
+                // 更新统计信息
+                if (countyCount) countyCount.textContent = counties.length;
+                if (indicatorCount) indicatorCount.textContent = indicators.length;
+                if (dataCount) dataCount.textContent = counties.length * indicators.length;
+                
+                // 显示预览
+                displayPreview();
+                
+                // 显示统计和历史
+                if (statsSection) statsSection.classList.remove('hidden');
+                if (historySection) historySection.classList.remove('hidden');
+                if (previewSection) previewSection.classList.remove('hidden');
+                
+                // 添加到历史记录
+                addToHistory({
+                    fileName: fileInput.files[0]?.name || '未命名文件',
+                    timestamp: new Date(),
+                    countyCount: counties.length,
+                    indicatorCount: indicators.length,
+                    dataCount: counties.length * indicators.length
+                });
+                
+                console.log('数据处理完成');
+                alert('数据处理成功！');
+                
+            } catch (error) {
+                console.error('数据处理过程中出错:', error);
+                console.error('错误堆栈:', error.stack);
+                alert('数据处理失败: ' + (error.message || '未知错误'));
+            }
+        }
+
+        function displayPreview() {
+            if (!processedData) return;
+            
+            // 清空预览
+            previewHeader.innerHTML = '';
+            previewBody.innerHTML = '';
+            
+            // 显示表头
+            processedData[0].forEach((header, index) => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                th.className = 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+                previewHeader.appendChild(th);
+            });
+            
+            // 显示数据行
+            processedData.slice(1).forEach((row, rowIndex) => {
+                const tr = document.createElement('tr');
+                tr.className = rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                
+                row.forEach((cell, cellIndex) => {
+                    const td = document.createElement('td');
+                    td.textContent = cell !== undefined ? cell : '';
+                    td.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-900';
+                    
+                    // 为指标名称列添加特殊样式
+                    if (cellIndex === 0) {
+                        td.className += ' font-medium';
+                    }
+                    
+                    tr.appendChild(td);
+                });
+                
+                previewBody.appendChild(tr);
+            });
+            
+            // 显示预览区域
+            previewSection.classList.remove('hidden');
+        }
+
+        function downloadFile(format) {
+            if (!processedData) {
+                alert('请先处理数据');
+                return;
+            }
+            
+            const ws = XLSX.utils.aoa_to_sheet(processedData);
+            
+            // 设置列宽
+            const wscols = [];
+            for (let i = 0; i < processedData[0].length; i++) {
+                wscols.push({ wch: i === 0 ? 20 : 15 }); // 第一列宽度更大
+            }
+            ws['!cols'] = wscols;
+            
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '处理结果');
+            
+            const fileName = '数据整理结果_' + new Date().getTime();
+            
+            if (format === 'xlsx') {
+                XLSX.writeFile(wb, fileName + '.xlsx');
+            } else {
+                XLSX.writeFile(wb, fileName + '.csv');
+            }
+        }
+
+        function downloadSampleData() {
+            // 创建示例数据
+            const sampleData = [
+                ['指标', '单位', '成都市', '绵阳市', '自贡市', '攀枝花市', '泸州市'],
+                ['GDP(亿元)', '', 19916.98, 3626.94, 1601.31, 1220.52, 2514.88],
+                ['人口(万人)', '', 2119.2, 486.82, 316.7, 121.41, 508.54],
+                ['面积(平方公里)', '', 14335, 20248.4, 4372.6, 7440.39, 12236.2],
+                ['人均GDP(元)', '', 94120, 74510, 50560, 100530, 49450],
+                ['财政收入(亿元)', '', 1520.7, 186.4, 82.6, 72.8, 135.2]
+            ];
+            
+            const ws = XLSX.utils.aoa_to_sheet(sampleData);
+            
+            // 设置列宽
+            const wscols = [];
+            for (let i = 0; i < sampleData[0].length; i++) {
+                wscols.push({ wch: i === 0 ? 20 : 15 });
+            }
+            ws['!cols'] = wscols;
+            
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '四川省示例数据');
+            
+            XLSX.writeFile(wb, '四川省示例数据.xlsx');
+        }
+
+        function addToHistory(record) {
+            history.unshift(record); // 添加到历史记录的开头
+            if (history.length > 10) {
+                history.pop(); // 只保留最近10条记录
+            }
+            renderHistory();
+        }
+
+        function renderHistory() {
+            historyList.innerHTML = '';
+            
+            history.forEach((record, index) => {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors';
+                
+                const date = new Date(record.timestamp);
+                const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+                
+                historyItem.innerHTML = `
+                    <div>
+                        <p class="font-medium text-gray-800">${record.fileName}</p>
+                        <p class="text-sm text-gray-600">${formattedDate} | ${record.countyCount}个县 | ${record.indicatorCount}个指标 | ${record.dataCount}个数据</p>
+                    </div>
+                    <div class="text-gray-400">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                `;
+                
+                historyList.appendChild(historyItem);
+            });
+        }
+
+        function clearHistoryRecords() {
+            history = [];
+            renderHistory();
+        }
+
+        function toggleTheme() {
+            const body = document.body;
+            const icon = themeToggle.querySelector('i');
+            
+            if (body.classList.contains('dark-mode')) {
+                body.classList.remove('dark-mode');
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+                document.documentElement.classList.remove('dark');
+            } else {
+                body.classList.add('dark-mode');
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+                document.documentElement.classList.add('dark');
+            }
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initEventListeners();
+            
+            // 确保工作表选择变化的监听正确设置
+            // 先移除可能存在的重复监听器
+            const newSheetSelect = document.getElementById('sheet-select');
+            if (newSheetSelect) {
+                // 为了安全起见，使用新的引用重新添加监听器
+                newSheetSelect.onchange = updateColumnSelect;
+            }
+            
+            // 显示教程
+            setTimeout(() => {
+                tutorialModal.classList.remove('hidden');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
