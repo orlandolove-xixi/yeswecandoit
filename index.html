@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据初步处理工具 - Excel表格数据转换</title>
+    <meta name="description" content="专业的数据处理工具，支持Excel文件上传、县域名提取、指标去重和表格转置功能">
+    <meta name="keywords" content="数据处理,Excel转换,表格转置,数据清洗,县域名提取">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="icon" href="images/logo.svg" type="image/svg+xml">
+    <!-- SheetJS库引入 -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <img src="images/logo.svg" alt="数据处理工具Logo" width="80" height="80">
+            <h1>数据初步处理工具</h1>
+            <p>高效处理Excel表格数据，支持多表格整合、县域名提取和表格转置</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <main>
+            <section class="section">
+                <h2>文件上传</h2>
+                <div class="file-upload">
+                    <label class="file-upload-label" for="fileInput">
+                        <div class="file-upload-icon">
+                            <i class="fas fa-file-excel text-green-500"></i>
+                        </div>
+                        <div class="file-upload-text">拖拽文件到此处或点击选择文件</div>
+                        <div class="file-upload-hint">支持.xlsx格式的Excel文件</div>
+                        <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls">
+                    </label>
+                </div>
+                
+                <div id="fileInfo" class="message message-info" style="display: none;">
+                    <i class="fas fa-file-alt mr-2"></i>
+                    <span id="fileName">未选择文件</span>
+                    <button id="removeFileBtn" class="ml-4 text-red-500 hover:text-red-700">
+                        <i class="fas fa-times"></i> 移除
+                    </button>
+                </div>
+            </section>
+
+            <section class="section" id="optionsSection" style="display: none;">
+                <h2>处理选项</h2>
+                <div class="options-container">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block mb-2">
+                                <input type="checkbox" id="extractCountyNames" checked class="mr-2">
+                                自动提取县域名
+                            </label>
+                        </div>
+                        <div>
+                            <label class="block mb-2">
+                                <input type="checkbox" id="removeDuplicateIndicators" checked class="mr-2">
+                                去除重复指标
+                            </label>
+                        </div>
+                        <div>
+                            <label class="block mb-2">
+                                <input type="checkbox" id="transposeTable" checked class="mr-2">
+                                表格转置（县域名放A列）
+                            </label>
+                        </div>
+                        <div>
+                            <label class="block mb-2">
+                                <input type="checkbox" id="includeSummaryRow" class="mr-2">
+                                包含汇总行
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6">
+                        <label class="block mb-2 font-medium">数据处理说明</label>
+                        <div class="message message-info">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            <span>系统将把县域名排成一列放在最左边，指标名称排列在第一行，自动处理多表格数据并去除重复项。</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="btn-group">
+                    <button id="processBtn" class="btn btn-primary">
+                        <i class="fas fa-magic mr-2"></i>开始处理数据
+                    </button>
+                    <button id="resetBtn" class="btn btn-secondary">
+                        <i class="fas fa-redo mr-2"></i>重置
+                    </button>
+                </div>
+            </section>
+
+            <div id="loadingSection" class="loading-container" style="display: none;">
+                <div class="loading"></div>
+                <p>正在处理数据，请稍候...</p>
+            </div>
+
+            <section id="resultsSection" class="section" style="display: none;">
+                <h2>处理结果</h2>
+                
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-number" id="countyCount">0</div>
+                        <div class="stat-label">县域名数量</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="indicatorCount">0</div>
+                        <div class="stat-label">指标数量</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="dataPointsCount">0</div>
+                        <div class="stat-label">数据点数量</div>
+                    </div>
+                </div>
+
+                <div class="tab-container">
+                    <button class="tab active" data-tab="preview">数据预览</button>
+                    <button class="tab" data-tab="errors">错误信息</button>
+                    <button class="tab" data-tab="logs">处理日志</button>
+                </div>
+
+                <div class="tab-content active" id="previewContent">
+                    <div class="data-preview">
+                        <table class="data-table" id="previewTable">
+                            <thead></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="errorsContent">
+                    <div id="errorList" class="message message-error" style="display: none;">
+                        <!-- 错误信息将在这里显示 -->
+                    </div>
+                </div>
+
+                <div class="tab-content" id="logsContent">
+                    <div id="processLogs" class="message message-info" style="max-height: 300px; overflow-y: auto;">
+                        <!-- 处理日志将在这里显示 -->
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button id="downloadXLSXBtn" class="btn btn-primary">
+                        <i class="fas fa-file-excel mr-2"></i>下载Excel文件
+                    </button>
+                    <button id="downloadCSVBtn" class="btn btn-secondary">
+                        <i class="fas fa-file-csv mr-2"></i>下载CSV文件
+                    </button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2024 数据初步处理工具 | 高效、准确的数据格式转换</p>
+        </div>
+    </footer>
+
+    <script>
+        // 全局变量存储处理后的数据
+        let processedData = [];
+        let headers = [];
+        let workbook = null;
+        let processingLogs = [];
+        let tempProcessedData = []; // 用于存储原始处理结果，便于转置操作
+        
+        // DOM元素获取
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const removeFileBtn = document.getElementById('removeFileBtn');
+        const optionsSection = document.getElementById('optionsSection');
+        const processBtn = document.getElementById('processBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const loadingSection = document.getElementById('loadingSection');
+        const resultsSection = document.getElementById('resultsSection');
+        const previewTable = document.getElementById('previewTable');
+        const countyCount = document.getElementById('countyCount');
+        const indicatorCount = document.getElementById('indicatorCount');
+        const dataPointsCount = document.getElementById('dataPointsCount');
+        const downloadXLSXBtn = document.getElementById('downloadXLSXBtn');
+        const downloadCSVBtn = document.getElementById('downloadCSVBtn');
+        const errorList = document.getElementById('errorList');
+        const processLogs = document.getElementById('processLogs');
+        const tabs = document.querySelectorAll('.tab');
+        const extractCountyNames = document.getElementById('extractCountyNames');
+        const removeDuplicateIndicators = document.getElementById('removeDuplicateIndicators');
+        const transposeTable = document.getElementById('transposeTable');
+        const includeSummaryRow = document.getElementById('includeSummaryRow');
+        
+        // 初始化事件监听
+        function initEventListeners() {
+            // 文件选择事件
+            fileInput.addEventListener('change', handleFileSelect);
+            removeFileBtn.addEventListener('click', removeFile);
+            
+            // 处理按钮点击事件
+            processBtn.addEventListener('click', processData);
+            
+            // 重置按钮点击事件
+            resetBtn.addEventListener('click', resetForm);
+            
+            // 下载按钮点击事件
+            downloadXLSXBtn.addEventListener('click', downloadXLSX);
+            downloadCSVBtn.addEventListener('click', downloadCSV);
+            
+            // 标签切换事件
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const target = tab.getAttribute('data-tab');
+                    switchTab(target);
+                });
+            });
+            
+            // 支持拖拽上传
+            const fileUploadArea = document.querySelector('.file-upload');
+            fileUploadArea.addEventListener('dragover', handleDragOver);
+            fileUploadArea.addEventListener('dragleave', handleDragLeave);
+            fileUploadArea.addEventListener('drop', handleDrop);
+        }
+        
+        // 初始化
+        initEventListeners();
+        
+        // 记录日志函数
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logMessage = `[${timestamp}] ${message}`;
+            processingLogs.push(logMessage);
+            console.log(logMessage);
+            
+            // 更新日志显示
+            if (processLogs) {
+                processLogs.innerHTML = processingLogs.join('<br>');
+                processLogs.scrollTop = processLogs.scrollHeight;
+            }
+        }
+        
+        // 处理文件选择
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                log(`选择文件: ${file.name}`);
+                fileName.textContent = `已选择: ${file.name}`;
+                fileInfo.style.display = 'block';
+                optionsSection.style.display = 'block';
+            }
+        }
+        
+        // 移除文件
+        function removeFile() {
+            fileInput.value = '';
+            fileInfo.style.display = 'none';
+            optionsSection.style.display = 'none';
+            log('文件已移除');
+        }
+        
+        // 标签切换函数
+        function switchTab(target) {
+            tabs.forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            const activeTab = document.querySelector(`[data-tab="${target}"]`);
+            const activeContent = document.getElementById(`${target}Content`);
+            
+            if (activeTab && activeContent) {
+                activeTab.classList.add('active');
+                activeContent.classList.add('active');
+                log(`切换到${target === 'preview' ? '数据预览' : target === 'errors' ? '错误信息' : '处理日志'}标签`);
+            }
+        }
+        
+        // 处理拖拽悬停
+        function handleDragOver(e) {
+            e.preventDefault();
+            this.style.borderColor = '#3498db';
+        }
+        
+        // 处理拖拽离开
+        function handleDragLeave() {
+            this.style.borderColor = '#ddd';
+        }
+        
+        // 处理拖拽放下
+        function handleDrop(e) {
+            e.preventDefault();
+            this.style.borderColor = '#ddd';
+            
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileSelect({ target: { files: e.dataTransfer.files } });
+            }
+        }
+        
+        // 处理数据
+        function processData() {
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('请先选择一个Excel文件');
+                return;
+            }
+            
+            // 清空之前的日志
+            processingLogs = [];
+            processLogs.innerHTML = '';
+            
+            // 显示加载状态
+            loadingSection.style.display = 'block';
+            optionsSection.style.display = 'none';
+            resultsSection.style.display = 'none';
+            errorList.style.display = 'none';
+            
+            log('开始处理Excel文件...');
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    workbook = XLSX.read(data, { type: 'array' });
+                    log(`成功读取Excel文件，包含 ${workbook.SheetNames.length} 个工作表`);
+                    
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    log(`处理工作表: ${firstSheetName}`);
+                    
+                    // 提取数据并处理
+                    processExcelWorksheet(worksheet);
+                    
+                } catch (error) {
+                    console.error('文件处理错误:', error);
+                    log(`错误: ${error.message}`);
+                    showError(`文件处理失败: ${error.message}`);
+                } finally {
+                    loadingSection.style.display = 'none';
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // 处理Excel工作表数据
+        function processExcelWorksheet(worksheet) {
+            try {
+                // 获取工作表范围
+                const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:A1');
+                log(`工作表范围: 从 ${XLSX.utils.encode_range(range)}`);
+                
+                // 尝试不同方式读取原始数据
+                let originalData;
+                try {
+                    originalData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
+                    log(`成功读取数据，共 ${originalData.length} 行`);
+                } catch (e) {
+                    log(`读取JSON数据失败，尝试raw模式: ${e.message}`);
+                    originalData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
+                }
+                
+                // 提取县域名
+                const counties = extractCounties(worksheet, range, originalData);
+                log(`成功提取到 ${counties.length} 个县域名`);
+                
+                // 提取指标名称
+                const indicators = extractIndicators(worksheet, range, originalData);
+                log(`成功提取到 ${indicators.length} 个指标名称`);
+                
+                if (counties.length === 0 || indicators.length === 0) {
+                    throw new Error('无法提取县域名或指标名称，请检查Excel文件格式');
+                }
+                
+                // 构建处理后的数据
+                const resultData = buildResultData(originalData, counties, indicators, range);
+                
+                // 应用转置操作
+                if (transposeTable.checked) {
+                    processedData = transposeData(resultData);
+                    log('已执行表格转置操作');
+                } else {
+                    processedData = resultData;
+                }
+                
+                // 更新统计信息
+                updateStats(counties.length, indicators.length, processedData);
+                
+                // 生成预览表格
+                generatePreviewTable();
+                
+                // 显示结果部分
+                resultsSection.style.display = 'block';
+                log('数据处理完成！');
+                
+            } catch (error) {
+                log(`处理工作表时出错: ${error.message}`);
+                showError(`数据处理失败: ${error.message}`);
+                throw error;
+            }
+        }
+        
+        // 提取县域名 - 支持识别Excel中多个小表格的县域名
+        function extractCounties(worksheet, range, originalData) {
+            const countiesSet = new Set();
+            
+            try {
+                log('开始提取县域名，支持识别多个小表格中的县域名...');
+                
+                // 方法1：扫描所有行，识别可能的县域名行（通常在每个小表格的表头部分）
+                for (let r = 0; r <= range.e.r; r++) {
+                    let potentialCountiesInRow = [];
+                    let nonEmptyCount = 0;
+                    
+                    // 从C列开始扫描（假设前两列是指标和单位）
+                    for (let c = 2; c <= range.e.c; c++) {
+                        const cellAddress = XLSX.utils.encode_col(c) + (r + 1);
+                        const cell = worksheet[cellAddress];
+                        
+                        if (cell && cell.v) {
+                            const cellValue = String(cell.v).trim();
+                            nonEmptyCount++;
+                            
+                            // 县域名识别规则
+                            const isCounty = 
+                                cellValue.length >= 2 && 
+                                !/^\d+(\.\d+)?$/.test(cellValue) && 
+                                !['合计', '总计', '小计', '总计:', '小计:', '单位'].includes(cellValue) && 
+                                (cellValue.includes('县') || cellValue.includes('区') || 
+                                 cellValue.includes('市') || /^[\u4e00-\u9fa5]{2,10}$/.test(cellValue));
+                            
+                            if (isCounty) {
+                                potentialCountiesInRow.push(cellValue);
+                            }
+                        }
+                    }
+                    
+                    // 如果这一行有多个潜在县域名，可能是县域名行
+                    if (potentialCountiesInRow.length >= 2 && potentialCountiesInRow.length >= nonEmptyCount * 0.5) {
+                        log(`找到可能的县域名行: ${r+1}，包含 ${potentialCountiesInRow.length} 个县域名`);
+                        potentialCountiesInRow.forEach(county => {
+                            countiesSet.add(county);
+                        });
+                    }
+                }
+                
+                log(`通过县域名行识别找到县域名数量: ${countiesSet.size}`);
+                
+                // 方法2：直接查找包含特定特征的县域名（针对所有单元格）
+                if (countiesSet.size < 3) {
+                    log('方法1提取县域名不足，使用方法2扫描所有单元格...');
+                    
+                    // 按行优先顺序扫描所有单元格
+                    for (let r = 0; r <= range.e.r; r++) {
+                        for (let c = 0; c <= range.e.c; c++) {
+                            const cellAddress = XLSX.utils.encode_col(c) + (r + 1);
+                            const cell = worksheet[cellAddress];
+                            
+                            if (cell && cell.v) {
+                                const value = String(cell.v).trim();
+                                
+                                // 更精确的县域名识别规则
+                                const isCounty = 
+                                    value.length >= 2 && 
+                                    !/^\d+(\.\d+)?$/.test(value) &&
+                                    (value.includes('县') || value.includes('区') || value.includes('市') ||
+                                     value.includes('温江区') || value.includes('双流区') || value.includes('郫都区') ||
+                                     value.includes('新津区') || value.includes('金堂县') || value.includes('大邑县') ||
+                                     value.includes('蒲江县') || value.includes('都江堰市') || value.includes('彭州市') ||
+                                     value.includes('邛崃市')) &&
+                                    !['合计', '总计', '小计', '单位'].includes(value);
+                                
+                                if (isCounty) {
+                                    countiesSet.add(value);
+                                    log(`方法2从单元格 ${cellAddress} 找到县域名: ${value}`);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // 方法3：使用原始数据作为最后的备用
+                if (countiesSet.size < 3 && originalData) {
+                    log('方法2提取县域名不足，使用原始数据...');
+                    
+                    // 按行优先顺序扫描原始数据
+                    for (let r = 0; r < originalData.length; r++) {
+                        const row = originalData[r];
+                        if (row) {
+                            for (let c = 0; c < row.length; c++) {
+                                if (row[c]) {
+                                    const value = String(row[c]).trim();
+                                    
+                                    // 县域名识别规则
+                                    const isLikelyCounty = 
+                                        value.length >= 2 && 
+                                        !/^\d+(\.\d+)?$/.test(value) &&
+                                        (value.includes('县') || value.includes('区') || value.includes('市')) &&
+                                        !['合计', '总计', '小计', '单位'].includes(value);
+                                    
+                                    if (isLikelyCounty) {
+                                        countiesSet.add(value);
+                                        log(`从原始数据行 ${r+1} 列 ${c+1} 找到县域名: ${value}`);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+            } catch (e) {
+                log(`提取县域名时出错: ${e.message}`);
+                // 最后的备用方法
+                if (originalData) {
+                    log('使用备用方法提取县域名...');
+                    for (let r = 0; r < originalData.length; r++) {
+                        const row = originalData[r];
+                        if (row) {
+                            for (let c = 2; c < row.length; c++) { // 从第三列开始
+                                if (row[c]) {
+                                    const countyName = String(row[c]).trim();
+                                    if (countyName && !/^\d+(\.\d+)?$/.test(countyName) && 
+                                        (countyName.includes('县') || countyName.includes('区') || countyName.includes('市'))) {
+                                        countiesSet.add(countyName);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 确保县域名按正确顺序排列
+            const counties = Array.from(countiesSet);
+            log(`识别到的所有县域名: ${counties.slice(0, 5).join(', ')}${counties.length > 5 ? '...' : ''}`);
+            
+            return counties;
+        }
+        
+        // 提取指标名称 - 从A列提取并确保只保留一份
+        function extractIndicators(worksheet, range, originalData) {
+            const indicatorsSet = new Set();
+            
+            try {
+                log('开始从A列提取不重复的指标名称...');
+                
+                // 从A列提取指标名称，过滤掉标题行和汇总行
+                for (let r = 0; r <= range.e.r; r++) {
+                    const cellAddress = 'A' + (r + 1);
+                    const cell = worksheet[cellAddress];
+                    
+                    if (cell && cell.v) {
+                        const value = String(cell.v).trim();
+                        // 过滤掉数字、短字符串、标题行和特殊关键词
+                        if (value.length > 1 && 
+                            !/^\d+(\.\d+)?$/.test(value) &&
+                            !['四川省', '一、基本情况', '二、综合经济', '三、农业', '四、教育', '合计', '总计', '小计'].includes(value) &&
+                            !value.includes('单位')) {
+                            // 只添加实际的指标名称，不添加类别标题
+                            indicatorsSet.add(value);
+                            log(`从A${r+1}提取指标: ${value}`);
+                        }
+                    }
+                }
+                
+                // 如果提取到的指标不足，使用备用方法
+                if (indicatorsSet.size < 1) {
+                    log('从A列提取指标不足，使用备用方法...');
+                    if (originalData && originalData.length > 0) {
+                        for (let r = 0; r < originalData.length; r++) {
+                            const row = originalData[r];
+                            if (row && row[0]) {
+                                const value = String(row[0]).trim();
+                                if (value.length > 1 && !/^\d+(\.\d+)?$/.test(value) &&
+                                    !['四川省', '一、', '二、', '三、', '四、', '合计', '总计'].some(prefix => value.startsWith(prefix))) {
+                                    indicatorsSet.add(value);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                log(`提取指标名称时出错: ${e.message}`);
+            }
+            
+            const indicators = Array.from(indicatorsSet);
+            log(`成功提取到 ${indicators.length} 个不重复的指标名称`);
+            
+            return indicators;
+        }
+        
+        // 构建结果数据
+        function buildResultData(originalData, counties, indicators, range) {
+            log('开始构建结果数据...');
+            
+            // 存储原始处理结果，便于后续转置操作
+            tempProcessedData = [];
+            
+            // 创建表头行
+            const headerRow = ['指标名称', '单位', ...counties];
+            tempProcessedData.push(headerRow);
+            
+            // 构建数据行
+            indicators.forEach(indicator => {
+                // 查找该指标对应的数据
+                const dataRow = findIndicatorData(originalData, indicator, counties, range);
+                tempProcessedData.push(dataRow);
+            });
+            
+            log(`成功构建 ${tempProcessedData.length} 行结果数据`);
+            return tempProcessedData;
+        }
+        
+        // 查找指标对应的数据
+        function findIndicatorData(originalData, indicator, counties, range) {
+            // 初始化数据行
+            const dataRow = [indicator, '', ...new Array(counties.length).fill('')];
+            
+            // 在原始数据中查找指标行
+            for (let r = 0; r < originalData.length; r++) {
+                const row = originalData[r];
+                if (row && row[0]) {
+                    const cellValue = String(row[0]).trim();
+                    
+                    // 如果找到匹配的指标行
+                    if (cellValue.includes(indicator) || indicator.includes(cellValue)) {
+                        // 尝试从相邻行获取单位信息
+                        if (r + 1 < originalData.length && originalData[r + 1] && originalData[r + 1][0]) {
+                            const unitValue = String(originalData[r + 1][0]).trim();
+                            if (unitValue.includes('单位') || unitValue.length <= 10) {
+                                dataRow[1] = unitValue.replace('单位', '').trim();
+                            }
+                        }
+                        
+                        // 填充数据
+                        for (let c = 2; c < row.length; c++) { // 从第三列开始是数据
+                            if (row[c]) {
+                                const value = String(row[c]).trim();
+                                if (value && !isNaN(value) || value === '0') {
+                                    // 查找对应的县域名列
+                                    for (let countyIndex = 0; countyIndex < counties.length; countyIndex++) {
+                                        // 这里应该有更精确的列映射逻辑
+                                        // 暂时使用简单的位置映射
+                                        if (c - 2 < counties.length) {
+                                            dataRow[countyIndex + 2] = value;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+            
+            return dataRow;
+        }
+        
+        // 表格转置函数 - 将县级单位放在第一列，指标名称放在第一行
+        function transposeData(data) {
+            log('开始执行表格转置...');
+            
+            if (!data || data.length < 2) {
+                log('数据不足，无法转置');
+                return data;
+            }
+            
+            const transposed = [];
+            
+            // 创建新的表头：第一列为空，后续为指标名称
+            const newHeaderRow = ['县级单位', ...data.slice(1).map(row => row[0] || '')];
+            transposed.push(newHeaderRow);
+            
+            // 添加单位行
+            const unitRow = ['单位', ...data.slice(1).map(row => row[1] || '')];
+            transposed.push(unitRow);
+            
+            // 转置县域名和对应数据
+            const counties = data[0].slice(2); // 获取所有县域名
+            
+            counties.forEach((county, countyIndex) => {
+                if (county && county.trim()) { // 确保县域名不为空
+                    const countyRow = [county];
+                    
+                    // 填充每个指标对应的数据
+                    for (let i = 1; i < data.length; i++) {
+                        const value = data[i][countyIndex + 2];
+                        countyRow.push(value || '');
+                    }
+                    
+                    transposed.push(countyRow);
+                }
+            });
+            
+            log(`表格转置完成，生成 ${transposed.length} 行数据`);
+            return transposed;
+        }
+        
+        // 更新统计信息
+        function updateStats(countyNum, indicatorNum, data) {
+            countyCount.textContent = transposeTable.checked ? indicatorNum : countyNum;
+            indicatorCount.textContent = transposeTable.checked ? countyNum : indicatorNum;
+            
+            // 计算数据点数量（减去表头和单位行）
+            if (data && data.length > 2) {
+                const dataRows = data.length - 2;
+                const dataCols = data[0].length - 1;
+                dataPointsCount.textContent = dataRows * dataCols;
+            } else {
+                dataPointsCount.textContent = '0';
+            }
+        }
+        
+        // 生成预览表格
+        function generatePreviewTable() {
+            const thead = previewTable.querySelector('thead');
+            const tbody = previewTable.querySelector('tbody');
+            
+            // 清空表格
+            thead.innerHTML = '';
+            tbody.innerHTML = '';
+            
+            if (!processedData || processedData.length === 0) {
+                log('没有数据可显示');
+                return;
+            }
+            
+            // 添加表头
+            const headerRow = document.createElement('tr');
+            processedData[0].forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header || '空';
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            
+            // 添加数据行（限制显示行数以提高性能）
+            const maxRowsToShow = 50;
+            const rowsToShow = processedData.slice(1, maxRowsToShow + 1);
+            
+            rowsToShow.forEach(row => {
+                const tr = document.createElement('tr');
+                row.forEach(cell => {
+                    const td = document.createElement('td');
+                    td.textContent = cell || '';
+                    
+                    // 高亮显示县域名行（如果是转置模式）
+                    if (transposeTable.checked && processedData.indexOf(row) === 2) {
+                        td.style.fontWeight = 'bold';
+                    }
+                    
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            
+            // 如果数据超过显示限制，添加提示行
+            if (processedData.length > maxRowsToShow + 1) {
+                const moreRow = document.createElement('tr');
+                const moreCell = document.createElement('td');
+                moreCell.colSpan = processedData[0].length;
+                moreCell.textContent = `... 还有 ${processedData.length - maxRowsToShow - 1} 行数据未显示`;
+                moreCell.style.textAlign = 'center';
+                moreCell.style.fontStyle = 'italic';
+                moreRow.appendChild(moreCell);
+                tbody.appendChild(moreRow);
+            }
+            
+            log(`生成数据预览表格，显示 ${rowsToShow.length} 行数据`);
+        }
+        
+        // 显示错误信息
+        function showError(message) {
+            errorList.textContent = message;
+            errorList.style.display = 'block';
+            switchTab('errors');
+            resultsSection.style.display = 'block';
+        }
+        
+        // 下载Excel文件
+        function downloadXLSX() {
+            try {
+                log('开始生成Excel文件...');
+                
+                // 创建工作簿
+                const wb = XLSX.utils.book_new();
+                
+                // 创建工作表
+                const ws = XLSX.utils.aoa_to_sheet(processedData);
+                
+                // 添加工作表到工作簿
+                XLSX.utils.book_append_sheet(wb, ws, "处理结果");
+                
+                // 生成Excel文件并下载
+                const fileName = `数据处理结果_${new Date().toISOString().slice(0, 10)}.xlsx`;
+                XLSX.writeFile(wb, fileName);
+                
+                log(`Excel文件 ${fileName} 已生成并下载`);
+            } catch (error) {
+                log(`生成Excel文件时出错: ${error.message}`);
+                showError(`下载Excel文件失败: ${error.message}`);
+            }
+        }
+        
+        // 下载CSV文件
+        function downloadCSV() {
+            try {
+                log('开始生成CSV文件...');
+                
+                // 创建CSV内容
+                const csvContent = processedData.map(row => 
+                    row.map(cell => {
+                        // 处理包含逗号、引号或换行符的单元格
+                        const cellStr = String(cell || '');
+                        if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+                            return `"${cellStr.replace(/"/g, '""')}"`;
+                        }
+                        return cellStr;
+                    }).join(',')
+                ).join('\n');
+                
+                // 创建Blob并下载
+                const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                
+                link.setAttribute('href', url);
+                link.setAttribute('download', `数据处理结果_${new Date().toISOString().slice(0, 10)}.csv`);
+                link.style.visibility = 'hidden';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                log('CSV文件已生成并下载');
+            } catch (error) {
+                log(`生成CSV文件时出错: ${error.message}`);
+                showError(`下载CSV文件失败: ${error.message}`);
+            }
+        }
+        
+        // 重置表单
+        function resetForm() {
+            fileInput.value = '';
+            fileInfo.style.display = 'none';
+            optionsSection.style.display = 'none';
+            resultsSection.style.display = 'none';
+            loadingSection.style.display = 'none';
+            errorList.style.display = 'none';
+            processedData = [];
+            headers = [];
+            workbook = null;
+            processingLogs = [];
+            processLogs.innerHTML = '';
+            log('表单已重置');
+        }
+    </script>
+</body>
+</html>
